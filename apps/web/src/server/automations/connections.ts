@@ -83,7 +83,9 @@ export async function listConnections(userId: string): Promise<PublicConnection[
   return data ?? [];
 }
 
-async function findOwned(userId: string, id: string): Promise<ApiConnectionRow> {
+/** 本人の接続先(秘密の値は含まない)。無ければ ConnectionError(not_found) */
+export async function getOwnedConnection(userId: string, id: string): Promise<ApiConnectionRow> {
+  if (!z.uuid().safeParse(id).success) throw new ConnectionError("not_found", "接続先が見つかりません");
   const { data, error } = await createAdminClient()
     .from("api_connections")
     .select("*")
@@ -145,7 +147,7 @@ export async function updateConnection(
   input: ApiConnectionUpdate,
 ): Promise<{ connection: PublicConnection; signingSecret?: string }> {
   const parsed = apiConnectionUpdateSchema.parse(input);
-  const current = await findOwned(userId, id);
+  const current = await getOwnedConnection(userId, id);
   if (parsed.config) {
     if (parsed.config.kind !== current.kind) throw new ConnectionError("invalid", "接続先の種類は変えられません");
     await validateConfig(parsed.config);
@@ -177,7 +179,7 @@ export async function updateConnection(
 }
 
 export async function deleteConnection(userId: string, id: string): Promise<void> {
-  await findOwned(userId, id);
+  await getOwnedConnection(userId, id);
   const { error } = await createAdminClient().from("api_connections").delete().eq("id", id).eq("user_id", userId);
   if (error) throw new Error(`接続先を削除できません: ${error.message}`);
 }
@@ -188,7 +190,7 @@ export async function getConnectionForUse<K extends ApiConnectionConfig["kind"]>
   id: string,
   kind: K,
 ): Promise<{ row: ApiConnectionRow; config: Extract<ApiConnectionConfig, { kind: K }>; secret: string | null }> {
-  const row = await findOwned(userId, id);
+  const row = await getOwnedConnection(userId, id);
   const config = apiConnectionConfigSchema.safeParse(row.config);
   if (row.kind !== kind || !config.success || config.data.kind !== kind) {
     throw new ConnectionError("invalid", "接続先の種類が合いません");

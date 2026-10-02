@@ -74,7 +74,8 @@ export function webhookPayload(ctx: ActionContext, note: string | undefined) {
             answers: ctx.event.answers.map((a) => ({ label: a.label, value: truncate(a.value, 1000) })),
           }
         : null,
-      ...(ctx.agenda ? { agenda: ctx.agenda.map(({ answers: _answers, ...rest }) => rest) } : {}),
+      // 一覧では回答を省く(本文を小さく保つ)
+      ...(ctx.agenda ? { agenda: ctx.agenda.map((e) => ({ ...e, answers: [] })) } : {}),
       ...(note ? { note: expandTemplate(note, ctx.variables) } : {}),
     },
   };

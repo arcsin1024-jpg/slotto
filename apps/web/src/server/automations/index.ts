@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import type { AutomationActionResult } from "@slotto/core";
 import type { AutomationRunRow, Json } from "@slotto/core/database";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -230,13 +231,14 @@ function sampleEvent(now: Date): EventDetails {
 }
 
 const TEST_INTERVAL_MS = 10_000;
+const UUID = z.uuid();
 
 /**
  * 試し実行。オフのオートメーションでも動かす。対象に当たる直近の予定(無ければ見本の予定)で、すべてのアクションを実際に実行する。
  * 履歴には source_type: "manual" で残す。
  */
 export async function runAutomationTest(userId: string, automationId: string, now: Date = new Date()): Promise<AutomationRunRow> {
-  const row = await loadAutomation(automationId);
+  const row = UUID.safeParse(automationId).success ? await loadAutomation(automationId) : null;
   if (!row || row.user_id !== userId) throw new AutomationTestError("not_found", "オートメーションが見つかりません");
   const automation = parseAutomation(row);
   if (!automation) throw new AutomationTestError("invalid", "オートメーションの設定の形が正しくありません");
