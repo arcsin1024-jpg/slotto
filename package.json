@@ -1,0 +1,13 @@
+{
+  "name": "slotto",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev:web": "pnpm --filter @slotto/web dev",
+    "dev:mobile": "pnpm --filter @slotto/mobile start",
+    "build:web": "pnpm --filter @slotto/web build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test"
+  }
+}

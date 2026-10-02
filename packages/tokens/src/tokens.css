@@ -1,0 +1,77 @@
+/*
+ * デザイントークン(仮の値)。
+ * デザインの方向が決まったら S1(デザイン担当)が置き換える。名前は変えない。
+ * アプリ用の index.ts と同じ名前・同じ値にすること。
+ */
+
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-surface-raised: #ffffff;
+  --color-sidebar: #1b2333;
+  --color-sidebar-text: #c9d1e0;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-active: #2a3550;
+  --color-primary: #2f6bff;
+  --color-primary-hover: #2559db;
+  --color-primary-text: #ffffff;
+  --color-primary-soft: #eaf0ff;
+  --color-text: #1a1f2b;
+  --color-text-muted: #5b6475;
+  --color-text-subtle: #8a93a3;
+  --color-border: #e3e6ec;
+  --color-border-strong: #c9ced8;
+  --color-success: #1f9d62;
+  --color-warning: #b7791f;
+  --color-danger: #d43c3c;
+  --color-info: #2f6bff;
+
+  --page-blue: #2f6bff;
+  --page-green: #1f9d62;
+  --page-teal: #0e9aa7;
+  --page-purple: #7a5af8;
+  --page-pink: #d6409f;
+  --page-orange: #e8590c;
+  --page-yellow: #b7791f;
+  --page-gray: #5b6475;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+}
+
+.dark {
+  --color-bg: #0f131b;
+  --color-surface: #161b25;
+  --color-surface-raised: #1d2330;
+  --color-sidebar: #0b0e14;
+  --color-sidebar-text: #a7b0c0;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-active: #1d2330;
+  --color-primary: #5b8cff;
+  --color-primary-hover: #7aa2ff;
+  --color-primary-text: #0b0e14;
+  --color-primary-soft: #1b2540;
+  --color-text: #eef1f6;
+  --color-text-muted: #a7b0c0;
+  --color-text-subtle: #7b8496;
+  --color-border: #262d3b;
+  --color-border-strong: #374052;
+  --color-success: #3cc486;
+  --color-warning: #e0a93b;
+  --color-danger: #f06a6a;
+  --color-info: #5b8cff;
+}

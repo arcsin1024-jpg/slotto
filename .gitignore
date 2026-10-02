@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+.next/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+*.tsbuildinfo
+coverage/
+
+# env
+.env
+.env.*
+!.env.example
+
+# Expo / React Native
+.expo/
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Claude
+.claude/worktrees/
+.claude/settings.local.json
+
+# misc
+.DS_Store
+Thumbs.db
+*.log
