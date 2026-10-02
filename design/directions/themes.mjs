@@ -1,6 +1,6 @@
 // 方向の案(手順 1)。色は OKLCH [明度, 彩度, 色相] で決め、design/lib/color.mjs で HEX にする。
 // 文字と背景のコントラストは WCAG AA(4.5:1)以上になる値を選んでいる。
-// 画面モックの生成スクリプト(build.mjs)はまだ無い。次の作業で足す。
+// 画面モックは build.mjs で生成し、Design のキャンバス「Slotto デザインの方向」に載せる。
 
 const W = "#FFFFFF";
 
