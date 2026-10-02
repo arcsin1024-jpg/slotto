@@ -221,37 +221,394 @@
 
 ## 4. 認証
 
-(調査中: 項目4)
+### 要点
+
+**Supabase クライアントとセッションの保存先**
+
+- 【事実】Supabase 公式の Expo クイックスタート(現行)は `@supabase/supabase-js` + `react-native-url-polyfill` + `expo-sqlite` を入れ、`import 'expo-sqlite/localStorage/install'` で `localStorage` を用意して `auth.storage: localStorage` に渡す構成。オプションは `autoRefreshToken: true` / `persistSession: true` / `detectSessionInUrl: false`。
+- 【事実】環境変数名は公式でも **`EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`**(Slotto のルール「`ANON_KEY` は使わない」と一致)。
+- 【事実】セッション保存先の選択肢
+
+  | 保存先 | 暗号化 | 備考 |
+  |---|---|---|
+  | `expo-sqlite` の `localStorage`(現行クイックスタート) | なし | 追加設定が少ない |
+  | `@react-native-async-storage/async-storage`(チュートリアル) | なし | 従来の定番 |
+  | `expo-secure-store` 単体 | あり(Keychain / Keystore) | **2048 バイトを超える値を保存できない**ため、セッション(JWT + リフレッシュトークン)の保存には不向き |
+  | `LargeSecureStore` パターン(公式チュートリアルに掲載) | あり | AES-256 の鍵を SecureStore に、暗号化した本体を AsyncStorage に保存。`aes-js` と `react-native-get-random-values` を使う |
+
+- 【事実】Web(Next.js)とアプリは同じ Supabase プロジェクトを向くので、ユーザー・RLS は共通。違いはセッションの持ち方だけ(Web は Cookie、アプリは端末内ストレージのリフレッシュトークン)。
+
+**Google ログイン**
+
+- 【事実】Supabase 公式の推奨はネイティブ方式: 端末で Google の ID トークンを取り、`supabase.auth.signInWithIdToken()` に渡す。ブラウザを開かずに済む。
+  - Google Cloud Console で **Web 用クライアント ID に加え、Android 用(SHA-1 フィンガープリントが必要)と iOS 用(Bundle ID)**を作る。Android アプリが使うのは Web 用クライアント ID。
+  - Supabase ダッシュボードの Google プロバイダに全クライアント ID を登録(複数あるときは Web 用を先頭に)。**iOS は「Skip nonce check」を有効にする**。
+  - Android の SHA-1 は **アップロード鍵と Play App Signing の署名鍵の両方**を登録する(Expo のドキュメント)。片方だけだとストア版でログインできない。
+- 【事実】ライブラリは Expo ドキュメントが 2 つ挙げている(優劣の記載なし)。どちらも独自ネイティブコードなので **Expo Go では動かず development build が必要**。
+  - `@react-native-google-signin/google-signin`: 広く使われている。**無料版は Google が非推奨にした旧 Android SDK ベース**。Android の Credential Manager 対応は有料版(Universal Sign In。EAS の利用者は無償で使える場合があると記載)。対応範囲は Expo 52〜57 / RN 0.76〜0.87、新旧アーキテクチャ両対応。
+  - `react-native-nitro-google-signin`: Credential Manager 対応を無料で含む。【未確認】メンテナンス状況と採用実績。
+- 【事実】代替はブラウザ方式: `supabase.auth.signInWithOAuth()` + `expo-web-browser` + ディープリンクで戻す。ネイティブライブラリも SHA-1 の登録も不要で、Web と同じ OAuth 設定を使い回せる。
+
+**Sign in with Apple**
+
+- 【事実】iOS は `expo-apple-authentication`(iOS / tvOS のみ。Android と Web は非対応)で `identityToken` を取り、`signInWithIdToken` に渡す。app.json に `ios.usesAppleSignIn: true`。Supabase 側は Apple プロバイダに **Bundle ID を Client ID として登録**するだけで、OAuth の設定もシークレットの更新も不要。
+- 【事実】Web と Android は OAuth 方式になり、Services ID・Team ID・署名鍵(.p8)が要る。**OAuth 方式のクライアントシークレットは 6 か月ごとに再生成が必要**で、忘れるとログインが止まる(Supabase ドキュメントが「重要な保守作業」と明記)。
+- 【事実】Apple が氏名を返すのは**初回の認可時だけ**。受け取ったらその場で `updateUser()` などで保存する。
+- 【事実】ボタンは `AppleAuthenticationButton` を使い、背景色・角丸を `style` で変えない(Apple のガイドライン)。Expo Go でも動くが、識別子が本番アプリと異なる。実機でテストする。
+
+**Sign in with Apple が必須になる条件(App Store Review Guideline 4.8)**
+
+- 【事実】4.8 の要旨: 第三者・ソーシャルのログイン(Google Sign-In など)で**主アカウント**の作成・認証をするアプリは、同等の選択肢として次の 3 条件を満たす別のログインサービスも提供しなければならない。
+  1. 収集するデータを氏名とメールアドレスに限定する
+  2. ユーザーがメールアドレスを非公開にできる
+  3. 同意なしに広告目的でアプリ内の行動を収集しない
+- 【事実】例外(別のログインサービスが不要な場合): 自社のアカウント登録・サインインの仕組み**だけ**を使うアプリ / 教育・企業向けで既存アカウントでのサインインが必須のアプリ / 政府・業界の電子 ID を使うアプリ / 特定の第三者サービスのクライアントアプリ、など。
+- 【事実】条文は「Sign in with Apple」を名指ししていないが、3 条件を満たす代表的な手段が Sign in with Apple。Expo のドキュメントも「第三者認証を含むアプリは Apple 認証を提供しなければならない」と書いている。
+- 結論: **iOS アプリに Google ログインを載せるなら Sign in with Apple もほぼ必須。メール+パスワード(自社アカウント)だけなら不要。**
+
+### 推奨方針
+
+- 【推奨】iOS アプリのログイン手段は「メール(パスワードまたはマジックリンク)+ Google + Apple」。Android は「メール + Google」(Apple は任意)。
+- 【推奨】**Apple でアプリに登録したユーザーが Web でもログインできるよう、Web 側にも Sign in with Apple を実装する**(「Web と同じアカウントで使う」前提のため)。Web の Apple ログインは OAuth 方式で、6 か月ごとのシークレット更新が運用に乗る。カレンダーのリマインダーを自分に入れておく。
+- 【推奨】Google ログインは、最初は**ブラウザ方式**(`signInWithOAuth` + `expo-web-browser`)で始めるのが手堅い。Web と設定を共有でき、SHA-1 の登録ミスで詰まらない。体験を上げたくなったらネイティブ方式に切り替える(Supabase 上は同じ Google アイデンティティなのでアカウントは変わらない)。
+- 【推奨】セッションの保存は `LargeSecureStore` パターン(暗号化)を採用する。カレンダーや予定という個人情報にアクセスできるトークンなので、平文保存は避けたい。
+- 【推奨】Google カレンダー連携(Calendar API のスコープとリフレッシュトークン)は、アプリのログインとは切り離して **Web 側のサーバー OAuth で行う**。アプリのネイティブ Google ログインは「本人確認(ID トークン)」だけに使う。
+
+### 注意点
+
+- 【事実】**アカウントの自動リンク**: Supabase Auth は「確認済みメールアドレスが同じ」アイデンティティを自動で同じユーザーに紐づける(無効化する設定はない)。Google で登録した人が同じメールアドレスの Apple ID でログインすれば同じアカウントになる。
+- 【事実】**Apple の「メールを非公開」を選ぶと別アカウントになる**。リレー用アドレス(`@privaterelay.appleid.com`)が渡されるため、Google やメールで作った既存アカウントと一致しない。対策は (a) ログイン後に「既存アカウントと連携」する導線(Supabase の手動リンク `linkIdentity`。ダッシュボードで有効化が必要)、(b) 初回登録時に案内文を出す、のいずれか。【二次情報】Apple のリレーアドレスと既存メールの衝突で `/token` が 500 を返す Issue(supabase/supabase #43895)が報告されている。実装時に現状を確認する。
+- 【事実】アカウントを作れるアプリは**アプリ内でアカウント削除**を提供する必要がある(項目 8)。Sign in with Apple を使う場合は削除時に Apple のトークン失効も行う。
+- 【未確認】アプリがバックグラウンドにいる間のトークン自動更新の制御(`supabase.auth.startAutoRefresh()` / `stopAutoRefresh()` を AppState に連動させる方法)は supabase-js のリファレンスに記載があるはずだが、今回取得したページでは該当箇所を確認できなかった。
+- 【未確認】SDK 56 以降の `expo/fetch`(グローバル fetch の既定)と supabase-js の相性。実機でログイン・リフレッシュ・Realtime を確認する。
 
 ---
 
 ## 5. 端末カレンダーの読み取り(expo-calendar)
 
-(調査中: 項目5)
+### 要点
+
+- 【事実】`expo-calendar` は SDK 56 で stable に昇格。SDK 57 のドキュメントは**オブジェクト指向の新 API**(`ExpoCalendar` / `ExpoCalendarEvent` など)が標準で、従来の関数 API は `expo-calendar/legacy` から import する(非推奨扱い)。古い記事の `getEventsAsync` などはレガシー側。
+- 【事実】**SDK 57 の expo-calendar は Expo Go と Snack では使えない**(「development build を作ること」と明記)。対応プラットフォームは Android と iOS(ドキュメントの表記は「device only」)。
+- 【事実】**権限**
+  - iOS 17 以降はカレンダーのアクセスが 2 段階: **フルアクセス**(読み取り・作成・削除。`NSCalendarsFullAccessUsageDescription`)と**書き込み専用**(追加のみ。`NSCalendarsWriteOnlyAccessUsageDescription`)。**予定を読むにはフルアクセスが必須**。書き込み専用では既存の予定もカレンダー一覧も読めない(仮想カレンダーが 1 つ返るだけ)。iOS 16 以前は `NSCalendarsUsageDescription`。
+  - config plugin の `calendarPermission` が `NSCalendarsUsageDescription` と `NSCalendarsFullAccessUsageDescription` の文言を設定する。`writeOnlyAccess: true` にすると書き込み専用になる(Slotto は読み取りが目的なので使わない)。`remindersPermission` はリマインダー用(Slotto では不要)。
+  - Android は `READ_CALENDAR` / `WRITE_CALENDAR`(実行時に許可を求める権限)。
+  - システム標準のカレンダー UI を開くだけなら権限は不要(`event.openInCalendar()` など)。
+- 【事実】**読み取り API**: `getCalendars()` でカレンダー一覧(`title`、`source`(名前・種別)、`ownerAccount`、`isPrimary`、`accessLevel`、`allowsModifications`、`color`)、`listEvents(calendars, startDate, endDate)` で期間内の予定(`title`、`startDate`、`endDate`、`allDay`、`location`、`notes`、`timeZone`、`recurrenceRule`、`availability`、`status`、主催者、`getAttendees()` で出席者)。
+- 【事実】**読めるのは「OS のカレンダーに登録されたアカウント」の予定**。iOS は EventKit、Android は Calendar Provider 経由で、端末に同期済みの iCloud / Google / Exchange(Outlook)の予定をまとめて読める。ただし:
+  - iOS: Google や Outlook のアカウントを **iOS の「設定」のカレンダーアカウントに追加**している場合だけ見える。Google カレンダーアプリや Outlook アプリを入れているだけでは EventKit からは見えない【二次情報】。
+  - Android: Google アカウントは標準で同期される。Outlook アプリは設定の「カレンダーを同期」をオンにした場合だけ Calendar Provider に出てくる【二次情報】。
+- 【事実】同期の鮮度は OS 任せ(EventKit の同期はアプリから即時に強制できないという報告がある)。
+
+### 推奨方針
+
+- 【推奨】**端末カレンダーの読み取りは補助機能と位置づける。** 空き時間の判定など Slotto の中核は、Web 側で連携する Google Calendar API / Microsoft Graph(サーバー間連携)を主にする。端末カレンダーは「サーバー連携していないカレンダー(iCloud、会社の Exchange など)の予定を、ユーザーが選んで取り込む」用途に使う。
+- 【推奨】**「選んだ予定だけをサーバーへ送る」設計**
+  1. 権限を求める前に、アプリ内の説明画面で「何のために読むか」「読んだ予定は端末内で一覧表示するだけで、選んだものだけを送ること」を伝える。
+  2. 読み取り・一覧表示・絞り込みは**端末内だけ**で行う(この時点ではサーバーに何も送らない)。
+  3. ユーザーが予定(またはカレンダー単位)を選び、送信内容を確認して「送信」を押したときだけ送る。
+  4. 送る項目は最小限にする(開始・終了・終日フラグ・「予定あり」だけで足りるなら、タイトル・場所・メモ・出席者は送らない。タイトルを送るかはユーザーが選べるようにする)。
+  5. 取り込んだ予定はアプリ内でいつでも削除でき、アカウント削除時にサーバーからも消える。
+- 【推奨】iOS の目的文字列(`NSCalendarsFullAccessUsageDescription`)は具体的に書く。例: 「端末のカレンダーの予定を表示し、あなたが選んだ予定だけを Slotto の空き時間の計算に使います。選んでいない予定は端末の外に送信されません。」曖昧な文言は審査で差し戻される典型例。
+- 【推奨】Android は読み取りだけなら `WRITE_CALENDAR` を外したい(`android.blockedPermissions`)。【未確認】`WRITE_CALENDAR` を外した状態で expo-calendar の権限要求 API が正常に動くか(読み書きをまとめて要求する実装だと拒否扱いになる可能性がある)。実機で確認する。
+
+### プライバシー表示(申告)の考え方
+
+- 【事実】**Apple(App Privacy)**: 「収集」の定義は「データを端末の外に送信し、リクエストを処理するのに必要な時間を超えて保持すること」。**端末内だけで処理するデータは申告不要**。Apple のデータ種別に「カレンダー」という項目はなく、サーバーに送って保存する予定データは **「ユーザーコンテンツ > その他のユーザーコンテンツ」** に当たると考えられる。出席者の氏名・メールも送るなら「連絡先」も検討する。アカウントに紐づくので「ユーザーに関連付けられたデータ」、用途は「アプリの機能」。【未確認】カレンダーデータの分類について Apple の明示的な指針は見つけられなかった。
+- 【事実】**Google Play(Data safety)**: データの種類に **「カレンダー > カレンダーの予定」**(予定、メモ、出席者など)がある。「収集」は「アプリから端末の外へ送信すること」で、**端末内だけで処理するデータは申告不要**。Slotto は選ばれた予定を送信・保存するので「収集する」「任意(ユーザーが選べる)」「用途: アプリの機能」「転送時に暗号化」「削除を依頼できる」と申告する形になる。
+- 【事実】Google Play の User Data ポリシーは、ユーザーの合理的な予想の範囲を超えるデータ収集に「アプリ内の目立つ開示と明示的な同意」を求める(アプリの通常の利用の流れの中に表示し、タップなどの能動的な操作で同意を得る。説明文やウェブサイトだけでは不可)。カレンダーは「個人情報および機密情報」の列挙には名指しされていないが、上記の送信前確認画面を同意画面として作っておけば要件を満たしやすい。
+- 【推奨】プライバシーポリシーに「端末カレンダーから読み取る項目」「サーバーに送る項目と条件(ユーザーが選んだものだけ)」「保存期間」「削除方法」を明記し、ストアの申告内容と一致させる。
+
+### 注意点
+
+- 【未確認】繰り返し予定が `listEvents` で各回に展開されて返るか(EventKit と Android の Instances テーブルは期間内の各回を返す仕組みだが、expo-calendar の新 API での挙動は実機で確認する)。
+- 【未確認】エミュレータでの動作(ドキュメントは「device only」表記)。Android エミュレータに Google アカウントを入れた状態で確認する。
+- 他人(出席者)の氏名・メールアドレスは第三者の個人情報。送らない設計が安全。
+- 権限を拒否された場合でも、アプリの他の機能は使えるようにする(権限を必須にしない)。iOS は一度拒否されると再度ダイアログを出せないので、設定アプリへの導線を用意する。
 
 ---
 
 ## 6. リンクでアプリを開く(Universal Links / App Links)
 
-(調査中: 項目6)
+### 要点
+
+**iOS: Universal Links**
+
+- 【事実】Web サイトの `https://<ドメイン>/.well-known/apple-app-site-association`(AASA。**拡張子なし**)に JSON を置く。`applinks.details` に `appID`(`<Team ID>.<Bundle ID>`)と対象パスを書く。iOS 13 以降は `appIDs`(複数)と `components`(パス・クエリ・フラグメント単位の指定と除外)が使える。`*` はスラッシュやピリオドにはマッチしない。ファイルは非圧縮で 128KB まで。
+- 【事実】**HTTPS で配信し、リダイレクトしてはいけない**(301 / 302 は非対応)。
+- 【事実】アプリ側は app.json の `ios.associatedDomains` に `"applinks:example.com"` を書く(**`https://` を付けない**。よくある間違い)。entitlement が変わるので**新しいネイティブビルドが必要**(EAS Build が capability を自動同期する)。
+- 【事実】**端末は AASA を自分のサーバーから直接取らず、Apple の CDN 経由で取得する**。取得はアプリのインストール時とアップデート時で、その後は頻繁に更新されない。CDN のキャッシュを手動で消す方法はない。Apple の CDN が持っている内容は `https://app-site-association.cdn-apple.com/a/v1/<ドメイン>` で確認できる。開発中は `applinks:example.com?mode=developer` と書くと CDN を通さず直接取得する【二次情報: TN3155 の解説】。
+- 【事実】本番で対象パスを変えた場合、ユーザーの端末に反映されるのはアプリ更新時。**最初にパス設計を固める**ことが重要。
+- 【事実】Web 側の `<head>` に `<meta name="apple-itunes-app" content="app-id=<App Store の ID>">` を置くと、アプリ未インストールの iOS Safari に Smart App Banner が出る。
+
+**Android: App Links**
+
+- 【事実】`https://<ドメイン>/.well-known/assetlinks.json` に、`relation: ["delegate_permission/common.handle_all_urls"]`、`target.namespace: "android_app"`、`package_name`、`sha256_cert_fingerprints` を書く。**`application/json` で HTTPS 配信**する。
+- 【事実】フィンガープリントは**全部の署名鍵の分**を入れる: EAS のビルド用キーストア(`eas credentials -p android` で確認)と、**Play App Signing の署名鍵**(Play Console の「アプリの署名」に Digital Asset Links の JSON スニペットがある)。ストア版は Google が再署名するので、後者が抜けるとストア版だけリンクが効かない。
+- 【事実】アプリ側は app.json の `android.intentFilters` に `autoVerify: true`、`data: [{ scheme: "https", host: "...", pathPrefix: "..." }]`、`category: ["BROWSABLE", "DEFAULT"]` を書く。検証はインストール後に行われ、反映まで 20 秒以上かかることがある。
+
+**Next.js のサイトから配信する方法**
+
+- 【二次情報】方法は 2 つ。
+  1. `public/.well-known/` に 2 ファイルを置き、`next.config` の `headers()` で `/.well-known/apple-app-site-association` に `Content-Type: application/json` を付ける(拡張子がないため、そのままだと `application/octet-stream` になりダウンロード扱いになる)。
+  2. Route Handler(`app/.well-known/apple-app-site-association/route.ts` と `app/.well-known/assetlinks.json/route.ts`)で JSON を返す。環境変数から Team ID やフィンガープリントを組み立てられ、Content-Type も確実。
+- 【推奨】Slotto では **Route Handler 方式**。開発用・本番用でアプリ ID やフィンガープリントを切り替えやすい。
+- 注意すべき落とし穴:
+  - **リダイレクト禁止**。`www` あり / なしの正規化、末尾スラッシュの付け外し、認証ミドルウェアのログインページへの転送、多言語のロケール付与などが `/.well-known/*` にかからないよう除外する。
+  - `associatedDomains` / `intentFilters` に書くホスト名は、**実際にリンクとして配る URL のホスト名と完全一致**させる(`slotto.example` と `www.slotto.example` は別物。両方使うなら両方に置く)。
+  - Vercel のプレビュー URL は別ドメインなので Universal Links / App Links の対象にならない。
+
+**Expo Router との組み合わせ**
+
+- 【事実】Expo Router は、届いた Universal Link / App Link / カスタムスキームの URL のパスを**そのままファイルベースのルートに当てはめる**。Web の `/events/123` と `src/app/events/[id].tsx` のようにパスを揃えておけば追加実装なしで該当画面が開く。
+- 【事実】パスが一致しない URL は `src/app/+native-intent.tsx` の `redirectSystemPath({ path, initial })` で書き換える(`initial` はアプリが閉じた状態からの起動かどうか)。この関数は**アプリのコンテキストの外で動く**ので認証状態は見られない。中で例外を出してはいけない。
+- 【事実】ログイン状態による振り分けは、ルートの `_layout` で `usePathname()` などを使って行う。
+- 【事実】カスタムスキーム(app.json の `scheme`)は Universal Links と別に必要(OAuth の戻り先、開発中の動作確認など)。現リポジトリの `scheme` は `mobile` のままなので `slotto` などに変える必要がある。
+
+### 推奨方針
+
+- 【推奨】**アプリで開く URL を絞る。** 日程調整サービスでは「予約ページ(ゲストが開く公開 URL)」はアプリを入れていない人が大半で、アプリを入れている主催者自身が確認のために開くこともある。**予約ページは Web のまま**にし、アプリで開くのは主催者向けの URL(例: 予定の詳細、通知メール内の「アプリで開く」リンク、自動実行の結果)に限定する。AASA の `components` と Android の `pathPrefix` で対象パスだけを指定し、予約ページ・認証コールバック・決済ページは除外する。
+- 【推奨】アプリで開く専用のパス接頭辞(例: `/app/...` や `/open/...`)を 1 つ決めると、AASA・intentFilters・Expo Router のルートが単純になり、後からパスを足してもアプリ更新を待たずに済む。
+- 【推奨】アプリが入っていない場合のフォールバックとして、同じ URL の Web ページ(内容の表示 + ストアへの導線)を必ず用意する。
+- 【推奨】アプリ側は `+not-found` を用意し、未対応のパスは Web ブラウザで開き直す。
+
+### 注意点
+
+- Universal Links は「リンクをタップしたとき」に効く。Safari のアドレスバーに直接入力した場合や、同じドメイン内のページ遷移では発火しない。メール内のリンクがトラッキング用 URL に書き換えられている場合も効かないことがある。
+- iOS は一度ユーザーが「Safari で開く」を選ぶと、そのドメインはブラウザで開く設定が記憶される。
+- 開発ビルドと本番で Bundle ID / パッケージ名を分ける場合は、AASA と assetlinks.json に両方を載せる。
+- 検証ツール: Branch の AASA Validator、`adb shell am start -a android.intent.action.VIEW -d "<URL>"`、Apple の技術ノート TN3155。
+- 【未確認】Next.js 16(`apps/web` は 16.3.8)での `/.well-known` の Route Handler とミドルウェア除外の具体的な書き方は、web 側の実装時に Next.js 16 のドキュメントで確認する。
 
 ---
 
 ## 7. 課金とストア規約
 
-(調査中: 項目7)
+### 7-1. App Store の規約(Web でも契約できるサブスクリプションをアプリで扱う場合)
+
+- 【事実】**3.1.1(In-App Purchase)**: アプリ内で機能やコンテンツを解放する(サブスクリプション、プレミアム機能など)には In-App Purchase(IAP)を使わなければならない。ライセンスキーや QR コードなど独自の仕組みで解放してはならない。
+- 【事実】**3.1.1(a)(Link to Other Purchase Methods)**: 米国のストアフロントでは、外部購入へのボタン・リンク・誘導が entitlement なしで許される。**それ以外のストアフロントでは、(特定地域の entitlement を使う場合を除き)アプリとメタデータに IAP 以外の購入手段へ誘導するボタン・外部リンク・呼びかけを入れてはならない。**
+- 【事実】**3.1.3(Other Purchase Methods)の前文**: この節に該当するアプリは IAP 以外の購入手段を使えるが、(米国ストアフロントと 3.1.1(a)・3.1.3(a) の場合を除き)**アプリ内で IAP 以外の購入方法を勧めてはならない**。アプリの外(メールなど)で案内するのは自由。
+- 【事実】**3.1.3(b)(Multiplatform Services)**: 複数プラットフォームで運営するアプリは、他のプラットフォームや Web サイトで取得したコンテンツ・サブスクリプション・機能にユーザーがアクセスすることを許可できる。**ただし、それらがアプリ内でも IAP として購入できることが条件。**
+- 【事実】**3.1.3(f)(Free Stand-alone Apps)**: 有料の Web ベースのツール(例: VoIP、クラウドストレージ、メールサービス、Web ホスティング)の単体コンパニオンとして動く無料アプリは、**アプリ内に購入機能がなく、アプリ外での購入への呼びかけもない**なら、IAP を使わなくてよい。
+- 【事実】3.1.3(a)(Reader Apps)は雑誌・新聞・書籍・音声・音楽・動画に限られ、日程調整サービスは対象外。
+- つまり Slotto が取れる形は次の 3 つ。
+
+  | 形 | 根拠 | アプリ内でできること | 手数料 |
+  |---|---|---|---|
+  | A. コンパニオン型(アプリでは売らない) | 3.1.3(f) | Web で契約済みのユーザーがログインして使うだけ。価格表示・購入ボタン・「Web でアップグレード」などの誘導は一切置かない | なし(Web 決済の手数料のみ) |
+  | B. IAP 併設型 | 3.1.3(b) | アプリ内でも IAP で同じプランを買える。Web で買った人もそのまま使える | Apple の手数料(下記) |
+  | C. 日本のストアフロント限定の代替決済・外部リンク | スマホ法対応の entitlement | IAP と並べて、代替決済や Web への購入リンクを出せる | 下記 |
+
+- 【二次情報】3.1.3(f) の条件を満たしていても、「Web で買った有料コンテンツをアプリで使わせている」として 3.1.1 で差し戻される事例が 2025〜2026 年にも報告されている(Apple Developer Forums、RevenueCat のブログ)。審査担当者の判断に幅がある。
+
+### 7-2. 日本のスマホソフトウェア競争促進法(スマホ法)の全面施行後
+
+- 【事実】スマホ法は **2025-12-18 に全面施行**。指定事業者は Apple(OS・アプリストア・ブラウザ)、iTunes 株式会社(アプリストア)、Google(OS・アプリストア・ブラウザ・検索)。
+- 【事実】**Apple(日本のストアフロント、iOS 26.2 以降)**。支払い手段は 3 つになった: Apple の IAP / アプリ内の代替決済 / アプリ外オファー(Web で購入させる。リンクあり・なしの両方)。
+
+  | 手段 | 手数料 |
+  |---|---|
+  | Apple の IAP | コミッション 21%(Small Business Program 参加者・2 年目以降の自動更新サブスクリプションなどは 10%)+ 決済処理手数料 5% |
+  | アプリ内の代替決済 | コミッション 21%(同 10%)。決済処理は自前 |
+  | アプリ外オファー(タップできるリンクあり) | ストアサービス手数料 15%(同 10%)。**リンクをタップしてから 7 日以内の売上**が対象 |
+  | アプリ外オファー(リンクなしの文字による案内) | 手数料なし【二次情報: RevenueCat・Repro の解説。Apple のページ上、コミッションの対象は「リンクのタップから 7 日以内の売上」と書かれている】 |
+
+- 【事実】Apple の条件(公式ページ「Payment options on the App Store in Japan」):
+  - 代替決済・アプリ外オファー(リンクの有無を問わず)には **StoreKit External Purchases or Offers Entitlement** が必要(キー `com.apple.developer.storekit.custom-purchase-link.allowed-regions`、値 `jp`)。日本のストアフロントの iPhone(iOS 26.2 以降)でのみ使える。
+  - アプリ内の代替決済を出すとき、または Web の購入ページへリンクで誘導するときは、**同じ画面に Apple の IAP も選択肢として出さなければならない**(同等以上に目立たせる。IAP のボタンは黒か白。代替手段を「推奨」に見せる配色は不可)。
+  - 代替手段に進む前に**アプリ内の開示シート**(Apple ではなく開発者と取引することの説明)を表示する。`canMakePayments` と `ExternalPurchaseCustomLink.isEligible` を確認してから `showNotice` を出す。
+  - **価格や特典は IAP と違ってよい**(同額にする義務はない)。
+  - **取引の報告義務**がある(返金・更新を含む全取引を、月末から 15 日以内に毎月報告。iOS 26.4 以降は External Purchase Server API)。
+  - App Store の製品ページには、Web での購入や代替決済の情報を書けない。
+  - 年齢による制限: 13 歳未満には Web 購入への誘導不可。13〜17 歳はペアレンタルゲートが必要。Kids カテゴリは Web 購入への誘導不可。
+  - 代替手段で買ったユーザーのサポート(返金、サブスクリプション管理)は開発者の責任。
+- 【事実】**Google Play(日本)**
+  - 日本向けの「external payments program」: アプリから自社サイトの決済ページへリンクで誘導できる。条件は、事業者として登録していること、Google Play Billing と**並べて**表示すること、リンク前に行き先と目的を知らせること、専用 API で取引を報告すること。手数料は**リンク後 24 時間以内の購入**に対し、自動更新サブスクリプション 10% / 年間収益 100 万ドルまでの分 10% / その他 20%。**このプログラムは 2027-03-31 で終了予定で、後継の「billing choice program」への登録が案内されている**(日本は 2026-09-30 から登録可能)。
+  - **Google Play の新しい手数料体系が日本では 2026-09-30 から適用**: サービス手数料は新規インストール分で都度課金 20%(年間 100 万ドルまでは 10%)、サブスクリプション 10%。Google Play Billing を使う場合は別に**決済手数料 5%**(日本・米国・英国・EEA・豪州)。
+  - リンクなしの文字による案内は手数料なし【二次情報】。
+- 【二次情報】日経の報道(2026-08)によると、代替決済を使うアプリはまだ少数にとどまる(見出し「代替決済利用わずか 9%」。記事本文は未確認)。
+
+### 7-3. Google Play の課金ポリシー
+
+- 【事実】Payments ポリシー: Play で配信するアプリが、アプリ内の機能やサービス(サブスクリプション、クラウドソフトウェア、業務効率化ソフトウェアなどを含む)への対価を受け取る場合は **Google Play の課金システムを使わなければならない**。物理的な商品・サービスは対象外。
+- 【事実】アプリ内から Play 課金以外の支払い方法へ誘導してはならない(WebView、ボタン、リンク、メッセージ、広告など)。例外は対象地域のプログラムに登録した場合。
+- 【事実】公式 FAQ: 「**どのアプリも consumption-only(閲覧・利用専用)にできる。有料サービスの一部であってもよい。** たとえばユーザーがアプリを開いてログインし、他の場所で支払ったコンテンツにアクセスできる」。consumption-only とは「アプリ内で何も購入できない」こと。
+- 【事実】公式 FAQ: アプリの外(メールなど)で他の購入方法を案内するのは自由。プラットフォーム間で価格を揃える義務はない。
+- 結論: **Google Play は「Web で契約、アプリはログインして使うだけ」を明確に認めている**(Apple より条件が緩い)。
+
+### 7-4. RevenueCat + Expo
+
+- 【事実】Expo の公式ガイドが挙げる課金ライブラリは `react-native-purchases`(RevenueCat)と `expo-iap`。どちらも development build が必要。
+- 【事実】RevenueCat は `react-native-purchases`(本体)と `react-native-purchases-ui`(ペイウォール、Customer Center)を入れる。API キーは iOS 用と Android 用で別。**Expo Go では自動的にモック(Preview API Mode)に切り替わり、UI の確認だけできる**(実際の購入は不可)。
+- 【事実】Web は RevenueCat Billing(Stripe ベース)で扱い、**entitlement(利用権)は iOS / Android / Web で共有できる**(商品は Web とストアで別に設定)。Web では `getProducts` / `purchaseProduct` / `restorePurchases` など一部の操作が使えない。
+- 【事実】日本のスマホ法向けに、RevenueCat は Web のチェックアウト画面をホストする「Web Purchase Button」を用意している。
+- 【二次情報】料金: 月間の追跡売上(MTR)2,500 ドルまで無料、それを超えた分に 1%。
+
+### 推奨方針
+
+- 【推奨】**第 1 段階は「A. コンパニオン型」で出す。** 契約は Web(Stripe など)だけで行い、アプリには価格表示・購入ボタン・Web の料金ページへのリンク・「Web でアップグレードしてください」といった文言を置かない。Google Play は consumption-only として問題なく、Apple は 3.1.3(f) に当てはめる。課金の実装・ストア手数料・二重課金の問題を避けられ、公開までが最短。
+- 【推奨】A 型で出すときの設計上の工夫:
+  - アカウント画面には「現在のプラン名」だけを表示し、変更の導線は置かない。プラン変更の案内はメールと Web で行う。
+  - **アプリ限定機能(アラーム、自動実行)を「有料プランでしか一切動かない」設計にすると、審査で「アプリ内の機能を外部決済で解放している」と見られやすい。** 無料プランでも回数や件数を絞って使えるようにし、「有料機能の入口」ではなく「サービスのコンパニオン」に見える構成にする。
+  - 審査メモ(App Review Notes)に「Web ベースの日程調整ツールの無料コンパニオンアプリで、アプリ内に購入・購入への誘導はない(3.1.3(f))」と書き、審査用のデモアカウント(有料プラン相当)を用意する。
+- 【推奨】**差し戻された場合、またはアプリ内で契約させたくなった場合は「B. IAP 併設型」に進む。** RevenueCat(`react-native-purchases`)でストア課金を実装し、Web の Stripe 契約と entitlement を一元化する。Apple の Small Business Program に参加すれば、日本ではコミッション 10% + 決済処理 5%。
+- 【推奨】「C. 日本限定の外部リンク」は当面見送る。IAP の併設・開示シート・毎月の取引報告・年齢確認が必要で、手数料もかかる(リンクありで 10〜15%)。売上規模が大きくなってから検討すれば足りる。
+- 【推奨】Web と IAP の両方で契約できるようにする場合は、**「誰がどこで契約中か」をサーバーの 1 つのテーブルで管理**し(Stripe と RevenueCat の Webhook で更新)、二重契約を検知してアプリと Web の両方に警告を出す。解約は契約した経路でしかできない(Apple 経由の契約は Apple の設定画面から)。
+
+### 注意点
+
+- 【未確認】日本のストアフロントで「リンクなしの文字による案内」だけを行う場合に、entitlement の申請と IAP の併設が必要かどうか。公式ページは「アプリ外オファーはリンクの有無を問わず entitlement が必要」と書く一方、IAP 併設の義務は「代替決済」と「リンクで誘導する場合」について書いている。実施前に Apple の公式ページを読み直すか、App Review に問い合わせる。
+- 【未確認】3.1.3(f) の「Web ベースのツール」に日程調整 SaaS が当たるかの公式見解(例示は VoIP・クラウドストレージ・メール・Web ホスティング)。
+- 規約は頻繁に変わる(Google の日本向けプログラムは 2026-09-30 に切り替わったばかり、Apple は iOS 27.2 でシステム提供の開示シートを予定)。実装直前に公式ページを再確認する。
+- 米国など他の国で配信する場合はルールが異なる(米国ストアフロントは外部リンクが自由)。まず日本のストアだけで配信するなら、日本のルールだけを見ればよい。
 
 ---
 
 ## 8. 審査とストア公開
 
-(調査中: 項目8)
+### 8-1. App Store の審査で関係するガイドライン
+
+- 【事実】**4.1 Copycats**
+  - (a) 人気アプリをそのまま真似たり、他のアプリの名前や UI を少し変えただけで自分のものとして出したりしてはならない。
+  - (b) 他のアプリやサービスになりすますアプリの提出は Developer Code of Conduct 違反で、Developer Program から除名されうる。
+  - (c) 許可なく他の開発者のアイコン・ブランド・製品名を、自分のアプリのアイコンや名前に使ってはならない。
+- 【事実】**2.3.7**: メタデータ(アプリ名、サブタイトル、キーワードなど)に商標や人気アプリの名前を詰め込んではならない。サブタイトルで他のアプリに言及してはならない。アプリ名は 30 文字まで。
+- Slotto への当てはめ: 「日程調整」という機能分野が同じこと自体は問題にならない(同分野のアプリは多数ある)。問題になるのは**名前・アイコン・画面デザイン・文言を TimeRex に似せること**と、**メタデータに「TimeRex」を入れること**(「TimeRex の代替」のような説明文やキーワードも避ける)。独自のブランドと UI にする。
+- 【事実】**4.2 Minimum Functionality**: 「Web サイトを包み直しただけ」を超える機能・コンテンツ・UI が必要。4.2.2 は「主にマーケティング素材、Web クリッピング、リンク集」であるアプリを認めない。
+- Slotto への当てはめ: WebView で Web 版を表示するだけのアプリは差し戻される可能性が高い。ネイティブの画面で作り、アプリ限定機能(通知・アラーム、端末カレンダー連携、自動実行の管理)を審査メモで明示する。
+- 【事実】**5.1.1(v) Account Sign-In**: アカウント作成に対応するアプリは、**アプリ内でアカウント削除**を提供しなければならない。重要なアカウント機能がないなら、ログインなしで使えるようにする。
+- 【事実】アカウント削除の要件(Apple の解説ページ。2022-06-30 から適用):
+  - 削除の入口はアプリ内で見つけやすい場所に置く(通常はアカウント設定)。
+  - **アカウントの記録と関連する個人データを丸ごと削除**する。一時停止・無効化だけでは不十分。
+  - Web で手続きを完了させる場合は、**削除ページへ直接リンク**する。電話やメールでの依頼を必須にしてはならない(規制の厳しい業種を除く)。
+  - **Sign in with Apple を使うアプリは、REST API でユーザーのトークンを失効させる。**
+  - 自動更新サブスクリプション(IAP)がある場合は、「請求は Apple 経由で続くので先に解約を」と案内する。
+  - 削除に時間がかかる場合は所要時間を伝え、完了を通知する。法令上保持が必要なデータがあればユーザーに伝える。
+  - 本人確認や再確認のステップは入れてよいが、不必要に難しくしてはならない。
+- 【事実】**5.1.1(i)**: プライバシーポリシーへのリンクを App Store Connect のメタデータ欄と**アプリ内**の両方に置く。収集するデータ・収集方法・用途、第三者提供先、保持と削除の方針を明記する。
+- 【事実】**5.1.1(ii)(iii)(iv)**: 目的文字列は用途を明確かつ完全に書く。コア機能に関係するデータだけにアクセスする。**有料機能を、データへのアクセス許可を条件にしてはならない。** 許可しないユーザーには代替手段を用意する。
+- 【事実】**5.1.2(i)**: 個人データを第三者と共有する場合は、**第三者の AI を含めて**共有先を明示し、明示的な許可を得なければならない。プッシュ通知などのシステム機能の有効化を、機能を使う条件にしてはならない。
+- Slotto への当てはめ: 「AI にタスクを実行させる」機能で予定の内容などを外部の AI サービスに送るなら、**送信先と送る内容を明示して同意を取る画面**が必要。
+- 【事実】**4.5.4**: プッシュ通知をアプリが機能するための必須条件にしてはならない。機密の個人情報を通知で送らない。販促目的の通知は明示的なオプトインが必要。
+- Slotto への当てはめ: 自動実行の結果通知に、API のレスポンス全文や個人情報を載せない(「実行が完了しました」程度にして、詳細はアプリ内で表示する)。
+- 【事実】**2.1(a)**: ログインがあるアプリは**審査用のデモアカウント**を提出する。プレースホルダの文言や空の URL を残さない。
+- 【事実】**2.3.10**: アプリやメタデータに他のモバイルプラットフォーム(Android、Google Play など)の名前・アイコンを入れない。スクリーンショットに Android の画面を使わない。
+
+### 8-2. プライバシーの申告(App Privacy / Data safety)
+
+- カレンダーデータの扱いは項目 5 の「プライバシー表示」を参照。要点だけ再掲:
+  - 【事実】両ストアとも「端末の外に送信して保持するデータ」が申告対象。**端末内だけで処理するデータは申告不要**。
+  - 【事実】Apple にはカレンダー専用の区分がなく、送信・保存する予定データは「ユーザーコンテンツ > その他のユーザーコンテンツ」が該当候補。Google Play には「カレンダー > カレンダーの予定」の区分がある。
+- Slotto で申告が必要になりそうなデータ(【推奨】実装が固まってから最終確認):
+
+  | データ | Apple の区分 | Google Play の区分 | 用途 |
+  |---|---|---|---|
+  | メールアドレス、氏名 | 連絡先情報 | 個人情報 | アプリの機能、アカウント管理 |
+  | ユーザー ID | ID > ユーザー ID | 個人情報 > ユーザー ID | アプリの機能 |
+  | 予定データ(選んで送信したもの) | ユーザーコンテンツ > その他 | カレンダー > カレンダーの予定 | アプリの機能 |
+  | プッシュ通知トークン | ID > デバイス ID | デバイスまたはその他の ID | アプリの機能 |
+  | 購入履歴(IAP を入れる場合) | 購入 | 金融情報 > 購入履歴 | アプリの機能 |
+  | クラッシュログ・利用状況(計測 SDK を入れる場合) | 診断 / 使用状況データ | アプリのパフォーマンス / アプリのアクティビティ | 分析 |
+
+- 【事実】Apple: 第三者 SDK(分析、広告、ログインなど)が収集するデータも申告対象。「トラッキング」(第三者データと結びつけた広告利用やデータブローカーへの提供)をしないなら、トラッキングは「なし」。
+- 【事実】Google Play: Data safety の内容はプライバシーポリシーと一致させ、常に最新に保つ。アカウント削除は**アプリ内の導線と、アプリ外(Web)から削除を依頼できる導線の両方**が必要。一時的な無効化は削除とみなされない。
+
+### 8-3. 提出時の必須項目(概要)
+
+- App Store(App Store Connect)
+  - 【事実】プライバシーポリシー URL(必須)、アプリ内からのリンク(必須)。
+  - 【事実】App Privacy の回答、審査用デモアカウント、年齢レーティング(2026-01-31 までに新しい質問票への回答が必要になった新レーティング体系)。
+  - 【事実】**2026-04-28 以降、アップロードするビルドは Xcode 26 以降・iOS 26 SDK 以降が必須**。Expo SDK 57 は Xcode 26.4 以上を要求するので、EAS Build の既定イメージで満たせる。
+  - サポート URL、スクリーンショット、説明文、カテゴリ、著作権表示、輸出コンプライアンス(暗号化の申告)、価格と配信地域【未確認: 今回は一覧の公式ページを取得していない。App Store Connect の入力画面で確認する】。
+  - 【事実】iPad に対応しない設定でも、iPad での表示崩れを理由に差し戻されることがある(Expo のドキュメント)。
+  - 【未確認】Privacy Manifest(`PrivacyInfo.xcprivacy`)の要否と app.json の `ios.privacyManifests` の書き方(Expo にガイドがあるが今回は本文未確認)。
+  - EU で配信する場合は DSA のトレーダー申告が必要(ユーザー自身が App Store Connect で行う操作)。日本だけで配信するなら EU を配信地域から外す選択もある。
+- Google Play(Play Console)
+  - 【事実】プライバシーポリシー(Play Console の所定欄とアプリ内の両方)、Data safety、アカウント削除の Web 導線。
+  - 【事実】**2026-08-31 以降、新規アプリとアップデートは Android 16(API レベル 36)以上をターゲットにする必要がある**。Expo SDK 57 は targetSdk 36 なので満たす。
+  - 【事実】Android 15 以上をターゲットにするアプリは 16KB ページサイズ対応が必要(2025-11-01 から)。【未確認】SDK 57 の既定ビルドと、追加するネイティブライブラリの対応状況。
+  - コンテンツのレーティング(質問票)、ターゲットユーザーの年齢、広告の有無、アプリへのアクセス方法(審査用のログイン情報)、ストア掲載情報【未確認: 今回は一覧の公式ページを取得していない】。
+  - 正確なアラーム(`USE_EXACT_ALARM`)や full-screen intent を使う場合は、Play Console での申告が別途必要(項目 2)。
+
+### 8-4. Google Play の新規個人開発者アカウントのクローズドテスト要件
+
+- 【事実】**2023-11-13 より後に作成した個人アカウント**は、製品版(production)を公開する前に、**12 人以上のテスターが 14 日間連続でオプトインした状態のクローズドテスト**を実施しなければならない(2024-12-11 に 20 人から 12 人に緩和。2026 年も継続中)。
+- 【事実】途中で抜けたテスターは数に入らない。14 日未満で抜けた人、抜けて入り直した人は連続にならない。
+- 【事実】条件を満たしたら Play Console の「製品版へのアクセスを申請」から 3 部構成の質問(クローズドテストの内容、アプリの説明、公開準備の状況)に回答する。審査は通常 7 日以内。
+- 【事実】**組織(法人)アカウントと、2023-11-13 以前に作った個人アカウントは対象外。**
+- 【推奨】Slotto 用の Play Console アカウントがいつ・どの種別で作られたかを最初に確認する。対象なら、**公開予定日の 3〜4 週間前までにクローズドテストを開始**する(12 人の確保 + 14 日 + 申請審査 最大 7 日程度)。テスターは Google アカウントのメールアドレスで招待する。知人で 12 人集まらない場合の段取りを早めに考える。
+- 【事実】Android の開発者確認(developer verification)が 2026-09-30 からブラジル・インドネシア・シンガポール・タイで必須になり、2027 年以降に世界へ拡大予定。Play Console で本人確認済みなら追加対応は小さい見込み【二次情報】。
+
+### 推奨方針
+
+- 【推奨】審査で止まりやすい順に先回りする: (1) アプリ内アカウント削除(Sign in with Apple のトークン失効を含む)、(2) Sign in with Apple(Google ログインを載せる場合)、(3) 目的文字列とプライバシーポリシーの具体性、(4) 審査用デモアカウントと審査メモ、(5) 課金の導線(項目 7)。
+- 【推奨】アカウント削除は Web とアプリで同じサーバー処理(Supabase の Edge Function など)を呼ぶ。削除対象は認証ユーザー、プロフィール、予定、取り込んだカレンダーデータ、プッシュトークン、自動実行の設定と履歴、外部連携のトークン。Web にも削除ページを置けば Google Play の「アプリ外からの削除依頼」要件も満たせる。
+- 【推奨】審査メモに「通知・アラーム機能の確認手順」「自動実行はサーバー側で動くこと」「AI に送るデータと同意画面の場所」を書く。審査担当者が時刻を待たずに確認できるよう、1〜2 分後に鳴る予定を作れるようにしておく。
+
+### 注意点
+
+- 【未確認】AlarmKit を使うアプリに対する審査上の追加要件(ガイドラインに AlarmKit を名指しした条文は見当たらなかった)。
+- ガイドラインの適用には審査担当者による幅がある(Expo のドキュメントも「一貫しないことがある」と注記)。差し戻しを前提にスケジュールに 1〜2 週間の余裕を持つ。
+- ストアの説明文・スクリーンショットで「必ず鳴る」「確実に実行」と断言しない(OS の制約があるため、誤解を招く表示として指摘されうる)。
 
 ---
 
 ## 9. Windows だけで iOS アプリを開発・提出する方法
 
-(調査中: 項目9)
+### 要点
+
+- 【事実】**Mac がなくても iOS アプリのビルド・実機テスト・ストア提出はできる。** ビルドは EAS Build(クラウドの macOS)、提出は EAS Submit が行う。Expo のドキュメントに「EAS Submit は macOS・Linux・Windows で動くので、iOS ビルドの出荷に Mac は不要」と明記されている。
+- 【事実】**できないこと**: iOS シミュレータの実行(macOS のみ)、iOS のローカルビルド(`npx expo run:ios`、Xcode が必要)。iOS の確認は**必ず実機**になる。
+- 【事実】**前提**: 有料の Apple Developer Program。iOS の実機ビルドはどの方法でも必須。
+
+### iOS: 実機で development build を動かすまで
+
+1. 【事実】`npx expo install expo-dev-client` を入れ、`apps/mobile` に `eas.json` を作る(development プロファイル: `developmentClient: true`、`distribution: "internal"`)。app.json に `ios.bundleIdentifier` を設定する。
+2. 【事実】`eas device:create` で iPhone を登録する(表示される URL / QR を iPhone で開いてプロファイルを入れる)。内部配布は ad hoc プロビジョニングで、**ビルド時点で登録済みの端末だけがインストールできる**。上限は Apple Developer アカウントあたり年間 iPhone 100 台。端末を追加したら再ビルドするか `eas build:resign` で再署名する。
+3. 【事実】`eas build --platform ios --profile development` を実行する。対話の中で Apple アカウントにログインすると、**配布用証明書・プロビジョニングプロファイル・APNs キーを EAS が生成して保管**する(Mac のキーチェーン操作は不要)。
+4. 【事実】ビルド完了後、QR コードかリンクから iPhone にインストールする。iOS 16 以降は端末側で「デベロッパモード」を有効にする必要がある。
+5. 【事実】Windows で `npx expo start` を実行し、iPhone の development build から接続する(同じネットワーク、または `--tunnel`)。JS の変更は即時に反映される。
+6. 【事実】**ネイティブ側が変わったとき(ネイティブコードを含むライブラリの追加、app.json の plugin や権限の変更、SDK の更新)だけ再ビルドが必要。**
+
+### iOS: TestFlight と App Store への提出
+
+- 【事実】`eas build --platform ios --profile production` で本番ビルドを作り、`eas submit --platform ios` で App Store Connect にアップロードする(`eas build --platform ios --auto-submit` で一括も可)。
+- 【事実】認証は App Store Connect API キー(`ascApiKeyPath` / `ascApiKeyIssuerId` / `ascApiKeyId`)か、Apple ID + アプリ用パスワード。`eas.json` の submit プロファイルに `ascAppId` を書く。
+- 【事実】アップロード後 10〜15 分ほどの処理を経て TestFlight に現れる。**App Store の審査への提出は App Store Connect の画面で手動で行う。**
+- 【未確認】ユーザーの環境に設定済みの App Store Connect API キー(App Manager ロール)を EAS Submit にそのまま使えるか(EAS Submit が要求するロール)。
+- TestFlight の内部テスター(審査なし)と外部テスター(Beta App Review あり)の人数上限などの詳細は【未確認: 今回は公式ページを取得していない】。
+
+### Android: 手元のエミュレータ / 実機で動かす
+
+- 【事実】方法は 2 つ。
+  - **ローカルビルド**: `npx expo run:android`(エミュレータ)/ `npx expo run:android --device`(USB 接続の実機)。Android Studio(Android SDK、JDK)が必要。ビルド回数の制限がなく速い。
+  - **EAS Build**: `eas build --platform android --profile development` で APK を作り、エミュレータか実機にインストールする。
+- 【事実】プッシュ通知を試すエミュレータは Google Play services 入りのイメージを使う。
+- 【事実】Google Play への提出は `eas submit --platform android`(Google のサービスアカウント鍵が必要。【未確認】初回だけ Play Console から手動アップロードが必要という制約の現状)。
+- 【二次情報】**Windows の 260 文字パス制限に注意。** New Architecture の Android ビルドは CMake / Ninja が深いパスを生成し、「Filename longer than 260 characters」や「build.ninja still dirty」で失敗する報告が多い(Expo の Issue #36274 ほか)。pnpm の isolated 構成(`.pnpm` 配下の長いパス)では特に起きやすい。対策は、リポジトリを浅いパスに置く(現在の `C:\Users\81703\slotto` は短い)、**hoisted のままにする**、Windows の長いパスを有効化する(システム設定の変更なのでユーザー自身が判断・実施)。
+
+### EAS の料金と制限
+
+- 【事実】Free プラン: **月に Android 15 回 + iOS 15 回のビルド**、低優先度キュー、同時実行 1、ビルドのタイムアウト 45 分、EAS Update は月間 1,000 MAU まで、EAS Submit は利用可、Workflows 60 分。
+- 【事実】Starter プラン(月 19 ドル): 45 ドル分のビルドクレジット、高優先度キュー、タイムアウト 2 時間、EAS Update 3,000 MAU。従量単価は Android medium 1 ドル / large 2 ドル、iOS medium 2 ドル / large 4 ドル。
+- 【事実】モノレポでは、**EAS CLI のコマンドはアプリのディレクトリ(`apps/mobile`)で実行**し、`eas.json` もそこに置く。ワークスペースの共有パッケージにビルド工程がある場合は、アプリの `package.json` の `postinstall` でビルドする(公式の例)。TypeScript ソースをそのまま参照する共有パッケージなら不要。
+
+### 推奨方針
+
+- 【推奨】**日常の開発は Android(ローカルビルド + エミュレータ / 実機)で回し、iOS は節目ごとに EAS Build で実機確認する。** iOS のビルドは Free プランで月 15 回なので、ネイティブ構成(入れるライブラリ、plugin、権限、entitlement)を早めに固めて再ビルドの回数を減らす。JS だけの変更は再ビルド不要。
+- 【推奨】iOS 固有の機能(Time Sensitive 通知、Sign in with Apple、Universal Links、AlarmKit、カレンダーのフルアクセス)は**実機でしか確認できない**ので、検証用の iPhone を 1 台確保する(AlarmKit を試すなら iOS 26 以降)。
+- 【推奨】最初の 1 回は「何も足していない雛形のまま development build を作って実機に入れる」ところまで通し、Apple Developer・証明書・端末登録の一連が動くことを先に確認する。
+- 【推奨】ビルドが増えてきたら Starter プラン(月 19 ドル)を検討する。低優先度キューの待ち時間がなくなる。
+
+### 注意点
+
+- iOS のネイティブクラッシュやビルドエラーは、Xcode なしでは EAS のビルドログと実機の挙動から追うことになる。Swift を書く独自モジュール(AlarmKit の自前実装、Widget Extension)は試行錯誤のコストが高い。
+- App Store 用のスクリーンショットはシミュレータで撮れないので、実機で撮るか画像として作る。【未確認】現在必須のスクリーンショットサイズ。
+- Apple アカウントの 2 要素認証の確認コードは、対話ビルドのたびに求められることがある。CI で回すなら App Store Connect API キーを使う。
+- 【未確認】`eas build --local`(ローカルで EAS のビルドを走らせる機能)は Windows では使えないとされる(macOS / Linux のみ)。Android のローカルビルドは `npx expo run:android` を使う。
+- SDK 57 から `expo prebuild` は既定で `android/` / `ios/` を消して再生成する。ネイティブディレクトリを手で編集しない(config plugin で設定する)。
 
 ---
 
@@ -322,5 +679,92 @@
 - Supabase Edge Functions Limits: https://supabase.com/docs/guides/functions/limits
 - 【二次情報】Supabase cron jobs(2026): https://crontap.com/guides/supabase-cron-jobs
 - 【二次情報】Supabase Queues in Production: https://dev.to/mwiginton/supabase-queues-in-production-dead-letter-queues-retries-and-poison-messages-with-pgmq-28dp
+
+### 4. 認証
+
+- Supabase: Expo React Native クイックスタート: https://supabase.com/docs/guides/getting-started/quickstarts/expo-react-native
+- Supabase: Expo React Native チュートリアル(LargeSecureStore): https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native
+- Supabase: Use Supabase Auth with React Native: https://supabase.com/docs/guides/auth/quickstarts/react-native
+- Supabase: Login with Google: https://supabase.com/docs/guides/auth/social-login/auth-google
+- Supabase: Login with Apple: https://supabase.com/docs/guides/auth/social-login/auth-apple
+- Expo: Using Google authentication: https://docs.expo.dev/guides/google-authentication/
+- Expo: AppleAuthentication(SDK 57): https://docs.expo.dev/versions/v57.0.0/sdk/apple-authentication/
+- React Native Google Sign In(無料版と有料版の違い): https://react-native-google-signin.github.io/docs/install
+- App Store Review Guidelines(4.8 / 5.1.1(v)): https://developer.apple.com/app-store/review/guidelines/
+- 【二次情報】Apple リレーメールの衝突 Issue: https://github.com/supabase/supabase/issues/43895
+
+### 5. 端末カレンダーの読み取り
+
+- expo-calendar(SDK 57): https://docs.expo.dev/versions/v57.0.0/sdk/calendar/
+- Apple TN3152: Migrating to the latest Calendar access levels(フォーラムスレッド): https://developer.apple.com/forums/thread/730980
+- expo-calendar の iOS フルアクセス関連 PR: https://github.com/expo/expo/pull/48186
+- Apple Developer Forums(EventKit の同期は即時に強制できない): https://developer.apple.com/forums/thread/766375
+- Google カレンダーヘルプ(iPhone / iPad との同期): https://support.google.com/calendar/answer/151674?hl=en&co=GENIE.Platform%3DiOS
+- Apple: App Privacy Details(データ種別と「収集」の定義): https://developer.apple.com/app-store/app-privacy-details/
+- Google Play: Data safety セクションの入力: https://support.google.com/googleplay/android-developer/answer/10787469?hl=en
+- Google Play: User Data ポリシー: https://support.google.com/googleplay/android-developer/answer/10144311
+
+### 6. リンクでアプリを開く
+
+- Expo: iOS Universal Links: https://docs.expo.dev/linking/ios-universal-links/
+- Expo: Android App Links: https://docs.expo.dev/linking/android-app-links/
+- Expo Router: Native intent(`+native-intent`): https://docs.expo.dev/router/advanced/native-intent/
+- Apple TN3155: Debugging universal links: https://developer.apple.com/documentation/technotes/tn3155-debugging-universal-links
+- Branch AASA Validator: https://branch.io/resources/aasa-validator/
+- 【二次情報】Universal Links のデバッグ解説: https://suho.dev/posts/how-to-troubleshoot-universal-links/
+- 【二次情報】Next.js で AASA / assetlinks.json を配信する: https://medium.com/@sshekhar336/how-to-add-apple-app-site-association-and-assetlinks-json-files-in-nextjs-and-reactjs-240efcc92d7f
+- 【二次情報】拡張子なしファイルの配信(Next.js Discussion): https://github.com/vercel/next.js/discussions/10648
+
+### 7. 課金とストア規約
+
+- App Store Review Guidelines(3.1.1 / 3.1.1(a) / 3.1.3): https://developer.apple.com/app-store/review/guidelines/
+- Apple Newsroom: Apple announces changes to iOS in Japan(2025-12-17): https://www.apple.com/newsroom/2025/12/apple-announces-changes-to-ios-in-japan/
+- Apple Developer: Payment options on the App Store in Japan: https://developer.apple.com/support/payment-options-on-the-app-store-in-japan/
+- Apple Developer: Changes to iOS in Japan: https://developer.apple.com/support/app-distribution-in-japan/
+- 公正取引委員会: スマホソフトウェア競争促進法: https://www.jftc.go.jp/msca/
+- Google Play: Payments ポリシー: https://support.google.com/googleplay/android-developer/answer/9858738
+- Google Play: Understanding Google Play's Payments policy(FAQ): https://support.google.com/googleplay/android-developer/answer/10281818?hl=en
+- Google Play: Enrolling in the external payments program(日本): https://support.google.com/googleplay/android-developer/answer/16787536?hl=en
+- Google Play: Enrolling in the billing choice program: https://support.google.com/googleplay/android-developer/answer/17161464
+- Google Play: Understanding Google Play's lower service fees: https://support.google.com/googleplay/android-developer/answer/16954621?hl=en
+- Expo: In-app purchases: https://docs.expo.dev/guides/in-app-purchases/
+- RevenueCat: Expo へのインストール: https://www.revenuecat.com/docs/getting-started/installation/expo
+- 【二次情報】RevenueCat: スマホ新法でアプリ外決済が解禁: https://www.revenuecat.com/jp/blog/engineering/new-smartphone-law
+- 【二次情報】Repro Journal: アプリ外決済手数料の整理: https://repro.io/contents/real-external-payment-guidelines/
+- 【二次情報】日本経済新聞: Apple がアプリ外決済に 15% 手数料: https://www.nikkei.com/article/DGXZQOUC1718P0X11C25A2000000/
+- 【二次情報】日本経済新聞: 代替決済利用わずか 9%(2026-08、見出しのみ確認): https://www.nikkei.com/article/DGXZQOUC2510C0V20C26A8000000/
+- 【二次情報】RevenueCat: The ultimate guide to App Store rejections: https://www.revenuecat.com/blog/growth/the-ultimate-guide-to-app-store-rejections
+- 【二次情報】Apple Developer Forums(3.1.1 で差し戻された B2B SaaS の事例): https://developer.apple.com/forums/thread/811018
+- 【二次情報】RevenueCat の料金: https://costbench.com/software/subscription-billing/revenuecat/
+
+### 8. 審査とストア公開
+
+- App Store Review Guidelines(2.1 / 2.3.7 / 2.3.10 / 4.1 / 4.2 / 4.5.4 / 5.1.1 / 5.1.2): https://developer.apple.com/app-store/review/guidelines/
+- Apple: Offering account deletion in your app: https://developer.apple.com/support/offering-account-deletion-in-your-app/
+- Apple TN3194: Sign in with Apple のトークン失効: https://developer.apple.com/documentation/technotes/tn3194-handling-account-deletions-and-revoking-tokens-for-sign-in-with-apple
+- Apple: App Privacy Details: https://developer.apple.com/app-store/app-privacy-details/
+- Apple: Upcoming requirements(SDK 最低要件): https://developer.apple.com/news/upcoming-requirements/
+- Expo blog: App Store Connect minimum SDK requirements update: https://expo.dev/blog/app-store-connect-minimum-sdk-26
+- Expo: App stores best practices: https://docs.expo.dev/distribution/app-stores/
+- Expo: Privacy manifests(今回は本文未確認): https://docs.expo.dev/guides/apple-privacy/
+- Google Play: App testing requirements for new personal developer accounts: https://support.google.com/googleplay/android-developer/answer/14151465?hl=en
+- Google Play: User Data ポリシー: https://support.google.com/googleplay/android-developer/answer/10144311
+- Google Play: Data safety: https://support.google.com/googleplay/android-developer/answer/10787469?hl=en
+- Google Play: Target API level requirements: https://support.google.com/googleplay/android-developer/answer/11926878?hl=en
+- Android: Support 16 KB page sizes: https://developer.android.com/guide/practices/page-sizes
+- Android Developers Blog: developer verification(2026-03): https://android-developers.googleblog.com/2026/03/android-developer-verification-rolling-out-to-all-developers.html
+- 【二次情報】Google Play 12 テスター要件の解説: https://www.choicely.com/blog/google-play-12-tester-rule
+
+### 9. Windows だけで iOS アプリを開発・提出する
+
+- Expo: Create a development build: https://docs.expo.dev/develop/development-builds/create-a-build/
+- Expo: Internal distribution: https://docs.expo.dev/build/internal-distribution/
+- Expo: Submit to the Apple App Store: https://docs.expo.dev/submit/ios/
+- Expo: Submit to the Google Play Store: https://docs.expo.dev/submit/android/
+- Expo: TestFlight: https://docs.expo.dev/submit/testflight/
+- Expo: Set up EAS Build with a monorepo: https://docs.expo.dev/build-reference/build-with-monorepos/
+- Expo: EAS の料金: https://expo.dev/pricing
+- 【二次情報】Windows の 260 文字パス問題(Expo Issue): https://github.com/expo/expo/issues/36274
+- 【二次情報】pnpm モノレポでの CMake パス長問題: https://github.com/margelo/react-native-worklets-core/issues/274
 
 <!-- 参照URL追記位置 -->
