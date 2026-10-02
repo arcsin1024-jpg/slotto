@@ -1,56 +1,31 @@
-# Welcome to your Expo app 👋
+# Slotto アプリ(apps/mobile)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+ホスト用のアプリ。Expo SDK 57、Expo Router。Web と同じ Supabase のアカウントで使う。
 
-## Get started
+## 動かす
 
-1. Install dependencies
+1. `.env.example` を `.env` にコピーし、`supabase status` の値を入れる
+2. ルートで `pnpm dev:mobile`(Expo の開発サーバー、ポート 8081)
+3. Android エミュレータなら `a` キー、実機なら Expo Go で QR コードを読む
+4. ログイン画面の「開発用: デモユーザーでログイン」で入る(`supabase/seed.sql` のデモユーザー)
 
-   ```bash
-   npm install
-   ```
+## 構成
 
-2. Start the app
+| 場所 | 中身 |
+|---|---|
+| `src/app/` | 画面(Expo Router)。`(app)/` はログイン後、`(app)/(tabs)/` が下のタブ |
+| `src/features/auth/` | ログイン(メールのリンク、Google、デモユーザー)とセッション |
+| `src/features/data/` | データの読み書きのフック。読み取りは Supabase を直接、サーバーの処理が要る操作は Web の API |
+| `src/features/notifications/` | 通知とアラーム。予約の計画(`plan.ts`、単体テストあり)、張り直し、チャンネル、プッシュのトークン |
+| `src/lib/` | 環境変数、Supabase(セッションは SecureStore に暗号化して保存)、API、データのキャッシュ |
+| `src/strings/` | 画面の文言 |
+| `src/theme/` | `@slotto/tokens` の色と寸法 |
+| `src/components/basic.tsx` | 仮の部品。デザインが決まったら置き換える |
 
-   ```bash
-   npx expo start
-   ```
+## Expo Go で動かない・確かめられないもの(development build が要る)
 
-In the output, you'll find options to open the app in a
+- サーバーからのプッシュ通知(Android の Expo Go では使えない)
+- 通知チャンネルの音の設定、iOS の時間厳守の通知(app.json の entitlement)
+- Android の正確なアラーム(`SCHEDULE_EXACT_ALARM`)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+ローカル通知(予定の通知とアラームの予約、タップでの画面遷移)は Expo Go でも動く。
