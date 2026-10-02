@@ -17,6 +17,9 @@ const projectDir = join(outDir, "project");
 mkdirSync(projectDir, { recursive: true });
 
 const num = "font-variant-numeric: tabular-nums";
+// style="…" の中に入れるので、書体名の引用符は一重にする
+const sans = font.sans.replaceAll("\"", "'");
+const mono = font.mono.replaceAll("\"", "'");
 const r = radius;
 
 function logo(file, height) {
@@ -140,7 +143,7 @@ ${collapsed ? "" : `<div style="display: flex; flex-direction: column; min-width
 <label style="margin-left: auto; display: flex; align-items: center; gap: 8px; width: ${collapsed ? 240 : 320}px; height: 34px; padding: 0 10px; box-sizing: border-box; border: 1px solid ${c["color-border"]}; border-radius: ${r.md}px; background: ${c["color-surface"]}; color: ${c["color-text-muted"]}; font-size: 13px">
 ${icon("search", 16, c["color-text-muted"])}
 <input type="search" placeholder="相手の名前やメールで検索" aria-label="検索" style="flex-grow: 1; min-width: 0; border: 0; background: transparent; font: inherit; color: ${c["color-text"]}; outline: none">
-<span style="height: 20px; padding: 0 5px; display: inline-flex; align-items: center; border: 1px solid ${c["color-border-strong"]}; border-radius: ${r.sm}px; font-family: ${font.mono}; font-size: 11px; color: ${c["color-text-muted"]}">Ctrl K</span>
+<span style="height: 20px; padding: 0 5px; display: inline-flex; align-items: center; border: 1px solid ${c["color-border-strong"]}; border-radius: ${r.sm}px; font-family: ${mono}; font-size: 11px; color: ${c["color-text-muted"]}">Ctrl K</span>
 </label>
 <button type="button" aria-label="お知らせ" style="width: 34px; height: 34px; border: 0; border-radius: ${r.md}px; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer">${icon("bell", 18, c["color-text-muted"])}</button>
 </header>`;
@@ -192,7 +195,7 @@ ${g.items.map(row).join("\n")}`,
     ["日時", `<span style="${num}">10月7日(水) 14:30–15:00</span><span style="display: block; font-size: 12px; color: ${c["color-text-muted"]}">日本時間・30分</span>`],
     ["予約ページ", `<span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 9999px; background: ${c["page-blue"]}"></span>初回お打ち合わせ</span>`],
     ["場所", `<a href="#" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: ${c["color-primary-ink"]}">${icon("video", 15, c["color-primary-ink"])}Google Meet に参加</a>`],
-    ["メール", `<span style="font-family: ${font.mono}; font-size: 13px">makoto.ito@example.com</span>`],
+    ["メール", `<span style="font-family: ${mono}; font-size: 13px">makoto.ito@example.com</span>`],
     ["ご相談の内容", "来期から営業部 20 名で使える日程調整の方法を探しています。いまはメールで候補日を出し合っています。"],
   ];
   const history = [
@@ -228,7 +231,7 @@ ${history.map(([t, s]) => `<li style="display: flex; gap: 10px; font-size: 13px;
 </div>
 </aside>`;
 
-  return `<div style="width: ${width}px; height: ${height}px; display: flex; overflow: hidden; font-family: ${font.sans}; font-size: 14px; line-height: 1.5; color: ${c["color-text"]}; background: ${c["color-surface"]}">
+  return `<div style="width: ${width}px; height: ${height}px; display: flex; overflow: hidden; font-family: ${sans}; font-size: 14px; line-height: 1.5; color: ${c["color-text"]}; background: ${c["color-surface"]}">
 ${sidebar}
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
 ${header}
