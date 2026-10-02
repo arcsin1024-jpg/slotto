@@ -12,7 +12,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -74,8 +74,8 @@
   --accent-foreground: var(--color-text);
   --destructive: var(--color-danger);
   --border: var(--color-border);
-  --input: var(--color-border-strong);
-  --ring: var(--color-primary);
+  --input: var(--color-border-control);
+  --ring: var(--color-focus-ring);
   --chart-1: var(--page-blue);
   --chart-2: var(--page-green);
   --chart-3: var(--page-orange);
@@ -87,9 +87,13 @@
   --sidebar-primary: var(--color-primary);
   --sidebar-primary-foreground: var(--color-primary-text);
   --sidebar-accent: var(--color-sidebar-active);
+  --sidebar-hover: var(--color-sidebar-hover);
   --sidebar-accent-foreground: var(--color-sidebar-text-active);
-  --sidebar-border: var(--color-sidebar-active);
-  --sidebar-ring: var(--color-primary);
+  --sidebar-border: var(--color-sidebar-border);
+  --sidebar-ring: var(--color-focus-ring);
+  /* 書体: next/font が読み込んだ書体(layout.tsx)を先頭に置く */
+  --font-sans: var(--font-geist), var(--font-noto-jp), "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
 }
 
 @layer base {
