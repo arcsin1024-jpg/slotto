@@ -613,7 +613,7 @@ Slotto(スロットー)は、空き時間を共有して相手に予約しても
 
 ## アプリアイコン
 
-ロゴの「tt」と帯だけを取り出した形。紺の地(\`app-icon-navy.svg\`)を第一案、青の地(\`app-icon-blue.svg\`)を第二案とする。角丸は OS がかけるので、SVG は正方形いっぱいに描いてある。
+ロゴの「tt」と帯だけを取り出した形。**青の地(\`app-icon-blue.svg\`)に決定**(2026-10-03)。青 #2456D3 の地に白の「tt」、帯は紺 #131B31。紺の地の案(\`app-icon-navy.svg\`)は不採用として残す。角丸は OS がかけるので、SVG は正方形いっぱいに描いてある。
 
 ## 部品
 
@@ -632,7 +632,7 @@ Components に、部品ごとの見本と使い方がある。\`components/bundl
 
 トークンはリポジトリの \`packages/tokens\` にある。このシステムの tokens.json と同じ元(\`design/tokens/source.mjs\`)から生成している。
 
-- Web: \`import "@slotto/tokens/tokens.css"\`。ライトは \`:root\`、ダークは \`.dark\` のクラス。CSS 変数の名前はこのシステムのトークン名と同じ(\`--color-primary\`、\`--space-4\`、\`--radius-md\`)
+- Web: \`import "@slotto/tokens/tokens.css"\`。書体は \`next/font/google\` で Geist、Noto Sans JP、Geist Mono を読み込み、\`--font-sans\` と \`--font-mono\` をその書体で上書きする。ライトは \`:root\`、ダークは \`.dark\` のクラス。CSS 変数の名前はこのシステムのトークン名と同じ(\`--color-primary\`、\`--space-4\`、\`--radius-md\`)
 - アプリ: \`import { color, space, radius, textStyle } from "@slotto/tokens"\`。\`color.light.textMuted\` のように camelCase
 `;
 
@@ -648,8 +648,8 @@ const logosReadme = `# Logos
 
 const iconsReadme = `# App icons
 
-- app-icon-navy.svg: 第一案。紺(#131B31)の地に白の「tt」、帯は #87B1FD
-- app-icon-blue.svg: 第二案。青(#2456D3)の地に白の「tt」、帯は #131B31
+- app-icon-blue.svg: 採用(2026-10-03)。青(#2456D3)の地に白の「tt」、帯は #131B31
+- app-icon-navy.svg: 不採用の案。紺(#131B31)の地に白の「tt」、帯は #87B1FD
 
 正方形いっぱいに描いてある。角丸は iOS と Android がかける。書き出しは 1024 × 1024。
 `;

@@ -1,46 +1,97 @@
 /*
- * デザイントークン(仮の値)。
- * デザインの方向が決まったら S1(デザイン担当)が置き換える。名前は変えない。
- * アプリ用の index.ts と同じ名前・同じ値にすること。
+ * Slotto のデザイントークン。
+ * このファイルは design/tokens/build.mjs が design/tokens/source.mjs から生成する。直接書き換えない。
+ * アプリ用の index.ts と同じ名前・同じ値。ライトは :root、ダークは .dark。
+ * 書体はここでは読み込まない。Web は next/font で Geist、Noto Sans JP、Geist Mono を読み込み、
+ * --font-sans と --font-mono をその書体名で上書きする(design/README.md を参照)。
  */
 
 :root {
-  --color-bg: #ffffff;
-  --color-surface: #f7f8fa;
-  --color-surface-raised: #ffffff;
-  --color-sidebar: #1b2333;
-  --color-sidebar-text: #c9d1e0;
-  --color-sidebar-text-active: #ffffff;
-  --color-sidebar-active: #2a3550;
-  --color-primary: #2f6bff;
-  --color-primary-hover: #2559db;
-  --color-primary-text: #ffffff;
-  --color-primary-soft: #eaf0ff;
-  --color-text: #1a1f2b;
-  --color-text-muted: #5b6475;
-  --color-text-subtle: #8a93a3;
-  --color-border: #e3e6ec;
-  --color-border-strong: #c9ced8;
-  --color-success: #1f9d62;
-  --color-warning: #b7791f;
-  --color-danger: #d43c3c;
-  --color-info: #2f6bff;
+  color-scheme: light;
+  --color-bg: #FFFFFF;
+  --color-surface: #F5F7FA;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-hover: #EEF0F4;
+  --color-overlay: rgba(15, 20, 35, 0.48);
+  --color-sidebar: #131B31;
+  --color-sidebar-hover: #1B2540;
+  --color-sidebar-active: #232F4F;
+  --color-sidebar-border: #283045;
+  --color-sidebar-text: #BCC4D5;
+  --color-sidebar-text-active: #FFFFFF;
+  --color-sidebar-text-muted: #8F98AB;
+  --color-sidebar-accent: #87B1FD;
+  --color-primary: #2456D3;
+  --color-primary-hover: #1844B9;
+  --color-primary-pressed: #12389E;
+  --color-primary-text: #FFFFFF;
+  --color-primary-soft: #E9F0FF;
+  --color-primary-ink: #1D4BC0;
+  --color-text: #121826;
+  --color-text-muted: #535B6C;
+  --color-text-subtle: #686F7E;
+  --color-text-inverse: #FFFFFF;
+  --color-border: #E4E6EA;
+  --color-border-strong: #CACED6;
+  --color-border-control: #868C99;
+  --color-focus-ring: #3266E4;
+  --color-success: #0B7643;
+  --color-success-soft: #E3F8E9;
+  --color-warning: #8A5601;
+  --color-warning-soft: #FEF0D4;
+  --color-danger: #BE2323;
+  --color-danger-hover: #A50E15;
+  --color-danger-text: #FFFFFF;
+  --color-danger-soft: #FEEEEB;
+  --color-info: #026A9D;
+  --color-info-soft: #E6F4FE;
+  --page-blue: #2A76C3;
+  --page-blue-soft: #E4F0FE;
+  --page-green: #048B56;
+  --page-green-soft: #DCF6E6;
+  --page-teal: #07858A;
+  --page-teal-soft: #D4F6F8;
+  --page-purple: #7C60BD;
+  --page-purple-soft: #EFECFE;
+  --page-pink: #AF4D80;
+  --page-pink-soft: #FFE7F1;
+  --page-orange: #B35713;
+  --page-orange-soft: #FEEADF;
+  --page-yellow: #9A7403;
+  --page-yellow-soft: #F9EDD5;
+  --page-gray: #6F7581;
+  --page-gray-soft: #ECEEF4;
 
-  --page-blue: #2f6bff;
-  --page-green: #1f9d62;
-  --page-teal: #0e9aa7;
-  --page-purple: #7a5af8;
-  --page-pink: #d6409f;
-  --page-orange: #e8590c;
-  --page-yellow: #b7791f;
-  --page-gray: #5b6475;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 1px 3px rgba(16, 24, 40, 0.06), 0 6px 16px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 2px 6px rgba(16, 24, 40, 0.08), 0 16px 40px rgba(16, 24, 40, 0.16);
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-full: 9999px;
+  --font-sans: Geist, "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-size-4xl: 38px;
+  --font-size-5xl: 48px;
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.4;
+  --line-height-normal: 1.6;
+  --line-height-relaxed: 1.8;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-snug: -0.01em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.04em;
 
+  --space-0: 0px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -51,27 +102,91 @@
   --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-0\.5: 2px;
+  --space-1\.5: 6px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+
+  --border-width-1: 1px;
+  --border-width-2: 2px;
+
+  --duration-fast: 100ms;
+  --duration-base: 160ms;
+  --duration-slow: 240ms;
+  --easing-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --layout-sidebar-width: 240px;
+  --layout-sidebar-collapsed: 64px;
+  --layout-header-height: 56px;
+  --layout-panel-width: 400px;
+  --layout-content-max-width: 1200px;
+  --layout-tab-bar-height: 56px;
 }
 
 .dark {
-  --color-bg: #0f131b;
-  --color-surface: #161b25;
-  --color-surface-raised: #1d2330;
-  --color-sidebar: #0b0e14;
-  --color-sidebar-text: #a7b0c0;
-  --color-sidebar-text-active: #ffffff;
-  --color-sidebar-active: #1d2330;
-  --color-primary: #5b8cff;
-  --color-primary-hover: #7aa2ff;
-  --color-primary-text: #0b0e14;
-  --color-primary-soft: #1b2540;
-  --color-text: #eef1f6;
-  --color-text-muted: #a7b0c0;
-  --color-text-subtle: #7b8496;
-  --color-border: #262d3b;
-  --color-border-strong: #374052;
-  --color-success: #3cc486;
-  --color-warning: #e0a93b;
-  --color-danger: #f06a6a;
-  --color-info: #5b8cff;
+  color-scheme: dark;
+  --color-bg: #11141A;
+  --color-surface: #0A0C11;
+  --color-surface-raised: #1A1E26;
+  --color-surface-hover: #20242C;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-sidebar: #050810;
+  --color-sidebar-hover: #0F1320;
+  --color-sidebar-active: #192032;
+  --color-sidebar-border: #191D27;
+  --color-sidebar-text: #B8BECA;
+  --color-sidebar-text-active: #FFFFFF;
+  --color-sidebar-text-muted: #868C99;
+  --color-sidebar-accent: #87B1FD;
+  --color-primary: #6D9DF5;
+  --color-primary-hover: #87B1FD;
+  --color-primary-pressed: #A0C1FE;
+  --color-primary-text: #090F1C;
+  --color-primary-soft: #172544;
+  --color-primary-ink: #9BBEFF;
+  --color-text: #ECEEF3;
+  --color-text-muted: #ABB1BD;
+  --color-text-subtle: #9095A1;
+  --color-text-inverse: #090F1C;
+  --color-border: #272A31;
+  --color-border-strong: #3B404A;
+  --color-border-control: #6C727E;
+  --color-focus-ring: #7DAAFD;
+  --color-success: #5CCB89;
+  --color-success-soft: #122D1D;
+  --color-warning: #EFB656;
+  --color-warning-soft: #35260C;
+  --color-danger: #F5746D;
+  --color-danger-hover: #FE8B83;
+  --color-danger-text: #090F1C;
+  --color-danger-soft: #3E1E1C;
+  --color-info: #6BBEF2;
+  --color-info-soft: #0E293A;
+  --page-blue: #70AFF4;
+  --page-blue-soft: #1A2F46;
+  --page-green: #61C28E;
+  --page-green-soft: #153524;
+  --page-teal: #24C1C9;
+  --page-teal-soft: #023538;
+  --page-purple: #B09BEE;
+  --page-purple-soft: #302844;
+  --page-pink: #E38AB5;
+  --page-pink-soft: #412331;
+  --page-orange: #E79363;
+  --page-orange-soft: #422616;
+  --page-yellow: #CDA448;
+  --page-yellow-soft: #392C0C;
+  --page-gray: #A5ABB8;
+  --page-gray-soft: #2B2E34;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 16px 40px rgba(0, 0, 0, 0.5);
 }

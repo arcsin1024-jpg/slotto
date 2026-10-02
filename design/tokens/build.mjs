@@ -150,6 +150,8 @@ function writePackages() {
  * Slotto のデザイントークン。
  * このファイルは design/tokens/build.mjs が design/tokens/source.mjs から生成する。直接書き換えない。
  * アプリ用の index.ts と同じ名前・同じ値。ライトは :root、ダークは .dark。
+ * 書体はここでは読み込まない。Web は next/font で Geist、Noto Sans JP、Geist Mono を読み込み、
+ * --font-sans と --font-mono をその書体名で上書きする(design/README.md を参照)。
  */
 `;
   const lightVars = Object.entries(colors).map(([n, c]) => `  --${n}: ${c.light};`);
@@ -157,8 +159,6 @@ function writePackages() {
   const shadowLight = Object.entries(src.shadow).map(([k, s]) => `  --shadow-${k}: ${s.value[0]};`);
   const shadowDark = Object.entries(src.shadow).map(([k, s]) => `  --shadow-${k}: ${s.value[1]};`);
   const css = `${head}
-@import url("${src.font.url}");
-
 :root {
   color-scheme: light;
 ${lightVars.join("\n")}
