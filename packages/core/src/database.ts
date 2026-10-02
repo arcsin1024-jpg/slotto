@@ -197,7 +197,16 @@ export type BookingRow = {
 export type BookingEventRow = {
   id: string;
   booking_id: string;
-  type: "created" | "approved" | "declined" | "rescheduled" | "cancelled" | "reminder_sent" | "calendar_written";
+  type:
+    | "created"
+    | "approved"
+    | "declined"
+    | "rescheduled"
+    | "cancelled"
+    | "reminder_sent"
+    | "calendar_written"
+    | "email_sent"
+    | "failed";
   actor: "host" | "guest" | "system";
   data: Json;
   created_at: Timestamp;
@@ -414,6 +423,19 @@ export type Database = {
       claim_due_jobs: {
         Args: { p_limit?: number };
         Returns: ScheduledJobRow[];
+      };
+      create_booking: {
+        Args: {
+          p_page_id: string;
+          p_starts_at: string;
+          p_ends_at: string;
+          p_guest_name: string;
+          p_guest_email: string;
+          p_guest_timezone: string;
+          p_answers: Json;
+          p_rescheduled_from?: string | null;
+        };
+        Returns: BookingRow;
       };
     };
     Enums: { [_ in never]: never };

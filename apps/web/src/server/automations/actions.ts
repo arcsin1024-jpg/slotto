@@ -43,7 +43,9 @@ function pushOutcome(type: AutomationActionResult["type"], result: PushResult, s
 
 function baseData(ctx: ActionContext): Record<string, unknown> {
   return {
-    type: "automation",
+    // アプリは type と id で行き先を決める(apps/mobile/src/features/notifications/routing.ts)
+    type: "automation_run",
+    id: ctx.runId,
     automation_id: ctx.automation.id,
     run_id: ctx.runId,
     ...(ctx.event ? { source_type: ctx.event.source_type, source_id: ctx.event.id } : {}),

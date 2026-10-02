@@ -11,11 +11,13 @@ export const EXPO_BATCH_SIZE = 100;
  * - event-alarm: アラーム(重要度 HIGH、専用の音)
  * - event-reminder: 予定の通知
  * - automation-result: オートメーションの結果
+ * - booking-update: 予約の追加・承認待ち・キャンセル
  */
 export const PUSH_CHANNELS = {
   alarm: "event-alarm",
   reminder: "event-reminder",
   automation: "automation-result",
+  booking: "booking-update",
 } as const;
 
 export interface ExpoPushMessage {

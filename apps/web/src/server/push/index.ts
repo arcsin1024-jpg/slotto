@@ -21,6 +21,8 @@ export interface PushMessage {
   data?: Record<string, unknown>;
   /** アラームとして鳴らす(Android はアラーム用のチャンネル、iOS は時間厳守の通知) */
   alarm?: boolean;
+  /** Android の通知チャンネル。省略時はオートメーションの結果のチャンネル(PUSH_CHANNELS) */
+  channelId?: string;
 }
 
 export interface PushResult {

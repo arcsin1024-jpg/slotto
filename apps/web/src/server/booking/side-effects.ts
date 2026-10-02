@@ -5,6 +5,7 @@ import { deleteBookingEvent, writeBookingEvent } from "@/server/calendar";
 import { sendBookingEmail } from "@/server/email";
 import { cancelBookingJobs, scheduleBookingJobs, triggerBookingAutomations } from "@/server/jobs";
 import { sendPush } from "@/server/push";
+import { PUSH_CHANNELS } from "@/server/push/expo";
 import type { AdminClient } from "./data";
 import { recordEvent, safely } from "./events";
 
@@ -24,6 +25,7 @@ async function pushToHost(db: AdminClient, booking: BookingRow, title: string) {
     title,
     body: `${booking.guest_name} さん・${formatDateTimeRange(booking.starts_at, booking.ends_at, timeZone)}`,
     data: { type: "booking", id: booking.id },
+    channelId: PUSH_CHANNELS.booking,
   });
 }
 
